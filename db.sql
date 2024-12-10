@@ -9,3 +9,9 @@ CREATE TABLE IF NOT EXISTS alarms (
     repeat TEXT CHECK(repeat IN ('None', 'Every Sunday', 'Every Monday', 'Every Tuesday', 'Every Wednesday', 'Every Thursday', 'Every Friday', 'Every Saturday')) NOT NULL DEFAULT 'None',
     active INTEGER NOT NULL DEFAULT 1
 );
+
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL UNIQUE
+);

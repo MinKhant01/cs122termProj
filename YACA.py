@@ -9,17 +9,22 @@ from alarms import Alarms
 from countdown import Countdown
 from news import get_top_headlines  # Import the get_top_headlines function
 from weather import get_weather_data, get_forecast_data, parse_weather_data, parse_forecast_data, get_current_coordinates, get_city_name  # Import weather functions
+from signin import SignInPage
+from google_sso import google_login, get_user_info
 
 class YACA:
-    def __init__(self, root):
+    def __init__(self, root, user_info):
         self.root = root
-        self.root.title("YACA")
+        self.user_info = user_info
+        self.root.title(f"YACA - Logged in as {self.user_info['first_name']} {self.user_info['last_name']}")
         
         # Set the size of the application window
         window_width = 1200  # Set your desired width
         window_height = 600  # Set your desired height
         self.root.geometry(f"{window_width}x{window_height}")
         self.root.minsize(window_width, window_height)  # Set the minimum size
+        
+        self.center_window(window_width, window_height)  # Center the window
         
         self.unit_var = tk.StringVar()
         self.unit_var.set("Imperial")  # Default value
@@ -39,6 +44,9 @@ class YACA:
         self.date_label = tk.Label(root, font=("Helvetica", 16))
         self.date_label.grid(row=1, column=0, pady=(0, 10), sticky="n")  # Ensure date_label is always visible
         self.update_date()
+        
+        self.profile_label = tk.Label(root, text=f"Logged in as: {self.user_info['first_name']} {self.user_info['last_name']}", font=("Helvetica", 12), width=30, anchor="e")
+        self.profile_label.grid(row=0, column=0, sticky="e", padx=(0, 10))  # Align to the right with padding
         
         self.weather_frame = tk.Frame(root)  # Initialize the Weather frame
         self.weather_frame.grid(row=2, column=0, pady=10, sticky="n")  # Reduce padding
@@ -402,7 +410,20 @@ class YACA:
             self.lap_listbox.insert(tk.END, f"Lap {i + 1}: {lap_time}")
         self.lap_listbox.yview_moveto(1)
 
+    def center_window(self, width, height):
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width // 2) - (width // 2)
+        y = (screen_height // 2) - (height // 2)
+        self.root.geometry(f'{width}x{height}+{x}+{y}')
+
 if __name__ == "__main__":
+    def on_success(user_info):
+        root.destroy()
+        new_root = tk.Tk()  # Create a new root window
+        app = YACA(new_root, user_info)
+        new_root.mainloop()
+    
     root = tk.Tk()
-    app = YACA(root)
+    SignInPage(root, on_success)
     root.mainloop()

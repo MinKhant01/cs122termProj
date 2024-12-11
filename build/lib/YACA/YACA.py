@@ -14,7 +14,7 @@ from google_sso import google_login, get_user_info
 import sqlite3  # Replace mysql.connector with sqlite3
 from dotenv import load_dotenv  # Import load_dotenv
 import os  # Import os
-from google_cal import get_google_calendar_events  # Import the function to get calendar events
+from YACA.google_cal import get_google_calendar_events  # Import the function to get calendar events
 import speech_recognition as sr  # Import speech_recognition
 import pyttsx3  # Import pyttsx3
 import threading  # Add this import

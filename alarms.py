@@ -1,12 +1,21 @@
 import tkinter as tk
-import sqlite3
+import mysql.connector
 from datetime import datetime, timedelta
 import pygame
+from dotenv import load_dotenv
+import os
 
 class Alarms(tk.Frame):
-    def __init__(self, parent):
+    def __init__(self, parent, user_id):
         super().__init__(parent)
-        self.db_connection = sqlite3.connect('alarms.db')
+        self.user_id = user_id
+        load_dotenv('/Users/ekhant/Documents/FA24/CS122/termProj/.env')
+        self.db_connection = mysql.connector.connect(
+            host=os.getenv('MYSQL_HOST'),
+            user=os.getenv('MYSQL_USER'),
+            password=os.getenv('MYSQL_PASSWORD'),
+            database=os.getenv('MYSQL_DATABASE')
+        )
         self.db_cursor = self.db_connection.cursor()
         self.reset_database()
         self.create_table()
@@ -22,19 +31,23 @@ class Alarms(tk.Frame):
     def reset_database(self):
         with open('/Users/ekhant/Documents/FA24/CS122/termProj/db.sql', 'r') as sql_file:
             sql_script = sql_file.read()
-        self.db_cursor.executescript(sql_script)
+        for statement in sql_script.split(';'):
+            if statement.strip():
+                self.db_cursor.execute(statement)
         self.db_connection.commit()
 
     def create_table(self):
         self.db_cursor.execute('''
             CREATE TABLE IF NOT EXISTS alarms (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                hour TEXT NOT NULL,
-                minute TEXT NOT NULL,
-                am_pm TEXT CHECK(am_pm IN ('AM', 'PM')) NOT NULL,
-                label TEXT,
-                repeat TEXT CHECK(repeat IN ('None', 'Every Sunday', 'Every Monday', 'Every Tuesday', 'Every Wednesday', 'Every Thursday', 'Every Friday', 'Every Saturday')) NOT NULL DEFAULT 'None',
-                active INTEGER NOT NULL DEFAULT 1
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id VARCHAR(255) NOT NULL,
+                hour VARCHAR(2) NOT NULL,
+                minute VARCHAR(2) NOT NULL,
+                am_pm ENUM('AM', 'PM') NOT NULL,
+                label VARCHAR(255),
+                repeat_option ENUM('None', 'Every Sunday', 'Every Monday', 'Every Tuesday', 'Every Wednesday', 'Every Thursday', 'Every Friday', 'Every Saturday') NOT NULL DEFAULT 'None',
+                active TINYINT(1) NOT NULL DEFAULT 1,
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )
         ''')
         self.db_connection.commit()
@@ -50,7 +63,7 @@ class Alarms(tk.Frame):
         for widget in self.alarms_frame.winfo_children():
             widget.destroy()
         
-        self.db_cursor.execute("SELECT * FROM alarms")
+        self.db_cursor.execute("SELECT * FROM alarms WHERE user_id = %s", (self.user_id,))
         alarms = self.db_cursor.fetchall()
         for alarm in alarms:
             alarm_frame = tk.Frame(self.alarms_frame)
@@ -66,7 +79,7 @@ class Alarms(tk.Frame):
 
     def toggle_alarm(self, alarm):
         new_status = 0 if alarm[6] else 1
-        self.db_cursor.execute("UPDATE alarms SET active = ? WHERE id = ?", (new_status, alarm[0]))
+        self.db_cursor.execute("UPDATE alarms SET active = %s WHERE id = %s AND user_id = %s", (new_status, alarm[0], self.user_id))
         self.db_connection.commit()
         self.load_alarms()
 
@@ -107,17 +120,40 @@ class Alarms(tk.Frame):
         tk.OptionMenu(alarm_window, repeat_var, *repeat_options).pack(side="left", padx=5)
         
         def save_alarm():
+            hour = hour_var.get()
+            minute = minute_var.get()
+            am_pm = am_pm_var.get()
+            label = label_entry.get()
+            repeat_option = repeat_var.get()
+
+            # Ensure the user_id exists in the users table
+            print(f"Connecting to DB with host={os.getenv('MYSQL_HOST')}, user={os.getenv('MYSQL_USER')}, database={os.getenv('MYSQL_DATABASE')}")  # Debug print
+            conn = mysql.connector.connect(
+                host=os.getenv('MYSQL_HOST'),
+                user=os.getenv('MYSQL_USER'),
+                password=os.getenv('MYSQL_PASSWORD'),
+                database=os.getenv('MYSQL_DATABASE')
+            )
+            cursor = conn.cursor()
+            cursor.execute('SELECT id FROM users WHERE id = %s', (self.user_id,))
+            user_exists = cursor.fetchone()
+            conn.close()
+            print(f"User ID {self.user_id} existence check: {user_exists}")  # Debug print
+            if not user_exists:
+                print(f"User ID {self.user_id} does not exist in the users table.")
+                return
+
             if alarm:
                 self.db_cursor.execute('''
                     UPDATE alarms
-                    SET hour = ?, minute = ?, am_pm = ?, label = ?, repeat = ?, active = 1
-                    WHERE id = ?
-                ''', (hour_var.get(), minute_var.get(), am_pm_var.get(), label_entry.get(), repeat_var.get(), alarm[0]))
+                    SET hour = %s, minute = %s, am_pm = %s, label = %s, repeat_option = %s, active = 1
+                    WHERE id = %s AND user_id = %s
+                ''', (hour, minute, am_pm, label, repeat_option, alarm[0], self.user_id))
             else:
                 self.db_cursor.execute('''
-                    INSERT INTO alarms (hour, minute, am_pm, label, repeat, active)
-                    VALUES (?, ?, ?, ?, ?, 1)
-                ''', (hour_var.get(), minute_var.get(), am_pm_var.get(), label_entry.get(), repeat_var.get()))
+                    INSERT INTO alarms (user_id, hour, minute, am_pm, label, repeat_option, active)
+                    VALUES (%s, %s, %s, %s, %s, %s, 1)
+                ''', (self.user_id, hour, minute, am_pm, label, repeat_option))
             self.db_connection.commit()
             alarm_window.destroy()
             self.load_alarms()
@@ -129,7 +165,7 @@ class Alarms(tk.Frame):
         tk.Button(alarm_window, text="Cancel", command=cancel_alarm).pack(side="left", padx=5)
 
     def delete_alarm(self, alarm_id):
-        self.db_cursor.execute("DELETE FROM alarms WHERE id = ?", (alarm_id,))
+        self.db_cursor.execute("DELETE FROM alarms WHERE id = %s AND user_id = %s", (alarm_id, self.user_id))
         self.db_connection.commit()
         self.load_alarms()
 
@@ -137,7 +173,7 @@ class Alarms(tk.Frame):
         now = datetime.now()
         current_time = now.strftime("%I:%M %p")
         current_day = now.strftime("%A")
-        self.db_cursor.execute("SELECT * FROM alarms WHERE active = 1")
+        self.db_cursor.execute("SELECT * FROM alarms WHERE active = 1 AND user_id = %s", (self.user_id,))
         alarms = self.db_cursor.fetchall()
         for alarm in alarms:
             alarm_time = f"{alarm[1]}:{alarm[2]} {alarm[3]}"

@@ -1,17 +1,17 @@
 class Stopwatch:
     def __init__(self):
         self.running = False
-        self.time = 0
+        self.time = 0  # Time in milliseconds
         self.laps = []
 
     def update_time(self):
-        self.time += 1
+        self.time += 10  # Increment by 10 milliseconds
 
     def get_time(self):
-        minutes = self.time // 6000
-        seconds = (self.time // 100) % 60
-        sub_seconds = self.time % 100
-        return f"{minutes:02}:{seconds:02}.{sub_seconds:02}"
+        minutes = self.time // 60000
+        seconds = (self.time // 1000) % 60
+        milliseconds = (self.time % 1000) // 10
+        return f"{minutes:02}:{seconds:02}.{milliseconds:02}"
 
     def start(self):
         self.running = True

@@ -91,6 +91,9 @@ class YACA:
         self.calendar_dropdown = tk.OptionMenu(self.calendar_title_frame, self.calendar_option, *self.get_next_seven_days(), command=self.update_calendar_events)
         self.calendar_dropdown.pack(side="left")
         
+        self.refresh_button = tk.Button(self.calendar_title_frame, text="Refresh", command=self.refresh_calendar_events)
+        self.refresh_button.pack(side="left", padx=(10, 0))  # Add padding to the left
+        
         self.calendar_display_frame = tk.Frame(self.calendar_frame)
         self.calendar_display_frame.pack(pady=10, fill="both", expand=True)
         
@@ -103,18 +106,29 @@ class YACA:
         self.calendar_scrollbar.config(command=self.calendar_listbox.yview)
         
         self.fetch_calendar_events()  # Fetch and display calendar events initially
+        self.root.after(60000, self.auto_refresh_calendar_events)  # Schedule automatic refresh every 60 seconds
         
         self.news_frame = tk.Frame(root)  # Initialize the News frame
         self.news_frame.grid(row=3, column=0, columnspan=3, sticky="nsew")  # Make the news frame fill the remaining space
-        self.news_frame.grid_rowconfigure(0, weight=1)
+        self.news_frame.grid_rowconfigure(0, weight=0)
+        self.news_frame.grid_rowconfigure(1, weight=1)
         self.news_frame.grid_columnconfigure(0, weight=1)
         
+        self.news_title_frame = tk.Frame(self.news_frame)  # Create a frame for the news title and refresh button
+        self.news_title_frame.grid(row=0, column=0, pady=(10, 0), sticky="ew")
+        
+        self.news_title = tk.Label(self.news_title_frame, text="Today's Top News", font=("Helvetica", 16, "bold"))
+        self.news_title.pack(side="left", padx=(10, 0))
+        
+        self.news_refresh_button = tk.Button(self.news_title_frame, text="Refresh", command=self.fetch_news)
+        self.news_refresh_button.pack(side="left", padx=(10, 0))
+        
         self.news_listbox = tk.Text(self.news_frame, height=20, width=100, state=tk.DISABLED)
-        self.news_listbox.grid(row=0, column=0, sticky="nsew")
+        self.news_listbox.grid(row=1, column=0, sticky="nsew")
         
         self.news_scrollbar = tk.Scrollbar(self.news_frame, orient="vertical")
         self.news_scrollbar.config(command=self.news_listbox.yview)
-        self.news_scrollbar.grid(row=0, column=1, sticky="ns")
+        self.news_scrollbar.grid(row=1, column=1, sticky="ns")
         
         self.news_listbox.config(yscrollcommand=self.news_scrollbar.set)
         
@@ -137,6 +151,7 @@ class YACA:
         self.update_clock()
         self.root.after(0, self.fetch_news)  # Fetch and display news initially
         self.root.after(0, self.fetch_weather)  # Fetch and display weather initially
+        self.root.after(300000, self.auto_refresh_news)  # Schedule automatic news refresh every 5 minutes
         self.show_clock()  # Show the clock view initially
         self.ensure_user_in_db(user_info)  # Ensure the user is in the database
 
@@ -209,13 +224,13 @@ class YACA:
             self.label.pack()
             
             self.start_stop_button = tk.Button(self.stopwatch_frame, text="Start", command=self.start_stop)
-            self.start_stop_button.pack(side="left")
+            self.start_stop_button.pack(side="left", padx=10)
             
             self.lap_reset_button = tk.Button(self.stopwatch_frame, text="Lap", command=self.lap_reset)
-            self.lap_reset_button.pack(side="left")
+            self.lap_reset_button.pack(side="left", padx=10)
             
             self.lap_frame = tk.Frame(self.stopwatch_frame)
-            self.lap_frame.pack(side="left")
+            self.lap_frame.pack(side="left", padx=10)
             
             self.lap_listbox = tk.Listbox(self.lap_frame, height=5)
             self.lap_listbox.pack(side="left", fill="y")
@@ -450,17 +465,17 @@ class YACA:
             self.stopwatch.update_time()
             self.label.config(text=self.stopwatch.get_time())
         self.clock_face.update_time()  # Ensure this method exists in ClockFace
-        self.root.after(1000, self.update_clock)  # Update every second
+        self.root.after(10, self.update_clock)  # Update every 10 milliseconds
 
     def start_stop(self):
         if self.stopwatch.running:
             self.stopwatch.stop()
-            self.start_stop_button.config(text="Stop")
-            self.lap_reset_button.config(text="Lap")
-        else:
-            self.stopwatch.start()
             self.start_stop_button.config(text="Start")
             self.lap_reset_button.config(text="Reset")
+        else:
+            self.stopwatch.start()
+            self.start_stop_button.config(text="Stop")
+            self.lap_reset_button.config(text="Lap")
 
     def lap_reset(self):
         if self.stopwatch.running:
@@ -519,12 +534,22 @@ class YACA:
             conn.commit()
             conn.close()
 
+    def refresh_calendar_events(self):
+        self.calendar_listbox.config(state=tk.NORMAL)  # Enable editing to update content
+        self.calendar_listbox.delete(1.0, tk.END)
+        self.calendar_listbox.insert(tk.END, "Refreshing Calendar Events ...\n")
+        self.calendar_listbox.config(state=tk.DISABLED)  # Disable editing after updating content
+        self.root.after(100, self.fetch_calendar_events)  # Fetch and display calendar events after a short delay
+
     def fetch_calendar_events(self):
         try:
-            events = get_google_calendar_events()
+            self.all_events = []  # Clear previous events
+            self.calendar_listbox.config(state=tk.NORMAL)  # Enable editing to update content
+            self.calendar_listbox.delete(1.0, tk.END)  # Clear the listbox
+            events = get_google_calendar_events(self.user_info['email'])  # Pass the user's email
             self.all_events = events  # Store all events
-            self.update_calendar_dropdown()  # Update the dropdown menu with the latest dates
-            self.update_calendar_events(self.calendar_option.get())  # Update display based on selected option
+            self.root.after(0, self.update_calendar_dropdown)  # Update the dropdown menu with the latest dates
+            self.root.after(0, lambda: self.update_calendar_events(self.calendar_option.get()))  # Update display based on selected option
             print("Fetched and displayed calendar events.")
         except Exception as e:
             print(f"Error fetching calendar events: {e}")
@@ -594,6 +619,14 @@ class YACA:
         else:
             self.display_calendar_events(filtered_events)
         self.calendar_listbox.config(state=tk.DISABLED)  # Disable editing after updating content
+
+    def auto_refresh_calendar_events(self):
+        threading.Thread(target=self.fetch_calendar_events).start()  # Fetch and display calendar events in a separate thread
+        self.root.after(60000, self.auto_refresh_calendar_events)  # Schedule the next refresh
+
+    def auto_refresh_news(self):
+        self.fetch_news()  # Fetch and display news
+        self.root.after(300000, self.auto_refresh_news)  # Schedule the next refresh
 
 if __name__ == "__main__":
     def on_success(current_root, user_info):

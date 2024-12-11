@@ -79,10 +79,10 @@ class GoogleCalendarEvent:
     def set_updated(self, updated):
         self.event['updated'] = updated
 
-def get_google_calendar_events():
+def get_google_calendar_events(user_email):
     SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
     CLIENT_SECRET = os.getenv('GoogleClientSecret')
-    TOKEN_FILE = 'token.json'
+    TOKEN_FILE = f'token_{user_email}.json'  # Use a unique token file for each user
 
     client_config = {
         "installed": {

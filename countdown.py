@@ -1,11 +1,13 @@
 import tkinter as tk
 import time
 import pygame  # For playing sound
+import sqlite3  # For database operations
 
 class Countdown(tk.Frame):
-    def __init__(self, master):
+    def __init__(self, master, user_id):
         super().__init__(master)
         self.master = master
+        self.user_id = user_id  # Store the user_id
         self.running_timers = {}  # Dictionary to store running timers and their remaining time
 
         pygame.mixer.init()  # Initialize the pygame mixer
@@ -53,7 +55,24 @@ class Countdown(tk.Frame):
 
         self.alarm_windows = {}  # Dictionary to store alarm windows and their sounds
 
+        self.db_connection = sqlite3.connect('path_to_your_database.db')
+        self.create_table_if_not_exists()
+        self.load_saved_countdowns()
+
         self.update_clock()
+
+    def create_table_if_not_exists(self):
+        cursor = self.db_connection.cursor()
+        cursor.execute('''CREATE TABLE IF NOT EXISTS countdowns (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            user_id TEXT,
+                            hours INTEGER,
+                            minutes INTEGER,
+                            seconds INTEGER,
+                            label TEXT,
+                            active INTEGER DEFAULT 1
+                          )''')
+        self.db_connection.commit()
 
     def on_select_saved(self, event):
         if self.saved_listbox.curselection():
@@ -76,10 +95,15 @@ class Countdown(tk.Frame):
         self.seconds_var = tk.StringVar(self.new_window)
         self.label_var = tk.StringVar(self.new_window)
 
+        tk.Label(self.new_window, text="Hours").pack(side="left", padx=5)
         self.hours_menu = tk.OptionMenu(self.new_window, self.hours_var, *[f"{i:02}" for i in range(24)])
         self.hours_menu.pack(side="left", padx=5)
+
+        tk.Label(self.new_window, text="Minutes").pack(side="left", padx=5)
         self.minutes_menu = tk.OptionMenu(self.new_window, self.minutes_var, *[f"{i:02}" for i in range(60)])
         self.minutes_menu.pack(side="left", padx=5)
+
+        tk.Label(self.new_window, text="Seconds").pack(side="left", padx=5)
         self.seconds_menu = tk.OptionMenu(self.new_window, self.seconds_var, *[f"{i:02}" for i in range(60)])
         self.seconds_menu.pack(side="left", padx=5)
 
@@ -89,6 +113,13 @@ class Countdown(tk.Frame):
         self.save_button = tk.Button(self.new_window, text="Save", command=self.save_countdown)
         self.save_button.pack(pady=10)
 
+    def load_saved_countdowns(self):
+        cursor = self.db_connection.cursor()
+        cursor.execute("SELECT hours, minutes, seconds, label FROM countdowns WHERE active = 1 AND user_id = ?", (self.user_id,))
+        for row in cursor.fetchall():
+            hours, minutes, seconds, label = row
+            self.saved_listbox.insert(tk.END, f"{hours:02}:{minutes:02}:{seconds:02} - {label}")
+
     def save_countdown(self):
         hours = int(self.hours_var.get() or 0)
         minutes = int(self.minutes_var.get() or 0)
@@ -97,6 +128,10 @@ class Countdown(tk.Frame):
         total_seconds = hours * 3600 + minutes * 60 + seconds
         if total_seconds > 0:
             self.saved_listbox.insert(tk.END, f"{hours:02}:{minutes:02}:{seconds:02} - {label}")
+            cursor = self.db_connection.cursor()
+            cursor.execute("INSERT INTO countdowns (user_id, hours, minutes, seconds, label) VALUES (?, ?, ?, ?, ?)",
+                           (self.user_id, hours, minutes, seconds, label))
+            self.db_connection.commit()
         self.new_window.destroy()
 
     def start(self):
@@ -118,6 +153,11 @@ class Countdown(tk.Frame):
                 if time_str in self.running_timers:
                     del self.running_timers[time_str]
                 self.active_listbox.delete(index)
+                hours, minutes, seconds = map(int, time_str.split(':'))
+                cursor = self.db_connection.cursor()
+                cursor.execute("UPDATE countdowns SET active = 0 WHERE hours = ? AND minutes = ? AND seconds = ?",
+                               (hours, minutes, seconds))
+                self.db_connection.commit()
             self.terminate_button.config(state=tk.DISABLED)
 
     def reset(self):
@@ -163,3 +203,7 @@ class Countdown(tk.Frame):
             self.alarm_windows[time_str].destroy()
             del self.alarm_windows[time_str]
         pygame.mixer.music.stop()
+
+    def __del__(self):
+        if hasattr(self, 'db_connection'):
+            self.db_connection.close()

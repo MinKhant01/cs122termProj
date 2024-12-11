@@ -75,48 +75,33 @@ def main():
     print(f"Text-to-speech engine initialized. Time Taken: {end_time - start_time:.2f} seconds")
 
     while True:
-        print("Listening for 'Hey Nora' to activate...")
-        response = recognize_speech_from_mic(recognizer, microphone)
+        try:
+            print("Listening for commands...")
+            response = recognize_speech_from_mic(recognizer, microphone)
 
-        if response["success"] and response["transcription"]:
-            transcription = response["transcription"].lower()
-            print("You said: {}".format(transcription))
-            if transcription == "hey nora":
-                current_hour = datetime.now().hour
-                if 5 <= current_hour < 12:
-                    greeting = "Good Morning"
-                elif 12 <= current_hour < 18:
-                    greeting = "Good Afternoon"
-                else:
-                    greeting = "Good Evening"
-                
-                print(f"{greeting}. Activated. How can I help you?")
-                text_to_speech(engine, f"{greeting}. How can I help you?")
-                while True:
-                    print("Listening for commands...")
-                    response = recognize_speech_from_mic(recognizer, microphone)
-
-                    if response["success"] and response["transcription"]:
-                        transcription = response["transcription"].lower()
-                        print("You said: {}".format(transcription))
-                        text_to_speech(engine, "You said: {}".format(transcription))
-                        if transcription == "sleep":
-                            print("Terminating the application.")
-                            current_hour = datetime.now().hour
-                            if 5 <= current_hour < 18:
-                                farewell = "Have a great day!"
-                            else:
-                                farewell = "Have a good night!"
-                            text_to_speech(engine, f"Terminating the application. {farewell}")
-                            return
-                        execute_command(engine, transcription)
+            if response["success"] and response["transcription"]:
+                transcription = response["transcription"].lower()
+                print("You said: {}".format(transcription))
+                text_to_speech(engine, "You said: {}".format(transcription))
+                if transcription == "terminate":
+                    print("Terminating the application.")
+                    current_hour = datetime.now().hour
+                    if 5 <= current_hour < 18:
+                        farewell = "Have a great day!"
                     else:
-                        error_message = "I didn't catch that. What did you say?\nError: {}".format(response["error"])
-                        print(error_message)
-                        text_to_speech(engine, error_message)
-        else:
-            print("Didn't catch 'Hey Nora'. Listening again in 0.5 seconds...")
-            time.sleep(0.5)
+                        farewell = "Have a good night!"
+                    text_to_speech(engine, f"Terminating the virtual assistant. {farewell}")
+                    return
+                execute_command(engine, transcription)
+            else:
+                error_message = "I didn't catch that. What did you say?\nError: {}".format(response["error"])
+                print(error_message)
+                text_to_speech(engine, error_message)
+            time.sleep(0.5)  # Add a short delay before listening again
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            text_to_speech(engine, f"An error occurred: {e}")
+            break  # Break the loop if an error occurs
 
 if __name__ == "__main__":
     main()

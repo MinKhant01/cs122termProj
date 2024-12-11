@@ -11,10 +11,13 @@ from news import get_top_headlines  # Import the get_top_headlines function
 from weather import get_weather_data, get_forecast_data, parse_weather_data, parse_forecast_data, get_current_coordinates, get_city_name  # Import weather functions
 from signin import SignInPage
 from google_sso import google_login, get_user_info
-import mysql.connector  # Import mysql.connector
+import sqlite3  # Replace mysql.connector with sqlite3
 from dotenv import load_dotenv  # Import load_dotenv
 import os  # Import os
 from google_cal import get_google_calendar_events  # Import the function to get calendar events
+import speech_recognition as sr  # Import speech_recognition
+import pyttsx3  # Import pyttsx3
+import threading  # Add this import
 
 # Load environment variables from .env file
 load_dotenv()
@@ -71,7 +74,6 @@ class YACA:
         
         self.create_menu()
         self.create_logout_button()  # Add this line to create the logout button
-        self.create_nora_button()  # Add this line to create the Nora button
         
         self.va_process = None  # Initialize the VA process to None
         
@@ -85,6 +87,9 @@ class YACA:
         
         self.logout_button = tk.Button(self.root, text="Logout", command=self.logout)
         self.logout_button.grid(row=0, column=0, sticky="nw", padx=(10, 0), pady=(10, 0))  # Position the logout button
+        
+        self.listen_button = tk.Button(self.root, text="Assistant", command=self.listen_for_command)
+        self.listen_button.grid(row=0, column=1, sticky="nw", padx=(10, 0), pady=(10, 0))  # Position the listen button next to the logout button
         
         self.profile_label = tk.Label(root, text=f"Logged in as: {self.user_info['first_name']} {self.user_info['last_name']}", font=("Helvetica", 12), width=30, anchor="e")
         self.profile_label.grid(row=0, column=2, sticky="ne", padx=(0, 10))  # Align to the right with padding
@@ -183,7 +188,7 @@ class YACA:
         
         self.forecast_frame = None  # Initialize forecast_frame to None
         
-        self.update_clock()
+        self.update_clock()  # Ensure the clockface thread is running
         self.root.after(0, self.fetch_news)  # Fetch and display news initially
         self.root.after(0, self.fetch_weather)  # Fetch and display weather initially
         self.root.after(300000, self.auto_refresh_news)  # Schedule automatic news refresh every 5 minutes
@@ -191,6 +196,7 @@ class YACA:
         self.ensure_user_in_db(user_info)  # Ensure the user is in the database
 
         self.calendar_option.trace_add('write', lambda *args: self.update_calendar_events(self.calendar_option.get()))
+        self.create_virtual_assistant()  # Add this line to create the virtual assistant interface
 
     def create_menu(self):
         menubar = tk.Menu(self.root)
@@ -211,11 +217,6 @@ class YACA:
     def create_logout_button(self):
         self.logout_button = tk.Button(self.root, text="Logout", command=self.logout)
         self.logout_button.grid(row=0, column=0, sticky="nw", padx=(10, 0), pady=(10, 0))  # Position the logout button
-
-    def create_nora_button(self):
-        self.nora_button = tk.Button(self.root, text="Nora")
-        self.nora_button.grid(row=0, column=1, sticky="nw", padx=(5, 0), pady=(10, 0))  # Position the Nora button with minimal space
-        ToolTip(self.nora_button, "Your virtual assistant in progress ... !")
 
     def logout(self):
         if self.root.winfo_exists():  # Check if the root window exists
@@ -300,7 +301,7 @@ class YACA:
         if self.alarms_frame is None:
             self.alarms_frame = tk.Frame(self.root)
             self.ensure_user_in_db(self.user_info)  # Ensure the user is in the database
-            self.alarms = Alarms(self.alarms_frame, self.user_info['id'])  # Pass user_id to Alarms
+            self.alarms = Alarms(self.alarms_frame, self.user_info['id'], self.save_alarm_callback)  # Pass user_id and save_alarm_callback to Alarms
             self.alarms_frame.grid(row=5, column=0, pady=20, sticky="n")  # Use grid instead of pack
             self.alarms.pack()  # Ensure the Alarms instance is packed within the frame
 
@@ -322,7 +323,7 @@ class YACA:
     def show_countdown(self):
         if self.countdown_frame is None:
             self.countdown_frame = tk.Frame(self.root)
-            self.countdown = Countdown(self.countdown_frame)  # Create an instance of Countdown within the frame
+            self.countdown = Countdown(self.countdown_frame, self.user_info['id'])  # Pass user_id to Countdown
             self.countdown.pack()  # Ensure the Countdown instance is packed within the frame
 
         self.clock_face.grid_forget()
@@ -508,7 +509,7 @@ class YACA:
             self.stopwatch.update_time()
             self.label.config(text=self.stopwatch.get_time())
         self.clock_face.update_time()  # Ensure this method exists in ClockFace
-        self.root.after(10, self.update_clock)  # Update every 10 milliseconds
+        self.root.after(1000, self.update_clock)  # Update every 1000 milliseconds (1 second)
 
     def start_stop(self):
         if self.stopwatch.running:
@@ -519,12 +520,23 @@ class YACA:
             self.stopwatch.start()
             self.start_stop_button.config(text="Stop")
             self.lap_reset_button.config(text="Lap")
+            self.stopwatch_start_time = time.time()  # Record the start time
+            threading.Thread(target=self.run_stopwatch).start()  # Start a new thread for the stopwatch
+
+    def run_stopwatch(self):
+        while self.stopwatch.running:
+            elapsed_time = time.time() - self.stopwatch_start_time
+            self.stopwatch.time = int(elapsed_time * 1000)  # Update the stopwatch time in milliseconds
+            self.label.config(text=self.stopwatch.get_time())
+            time.sleep(0.1)  # Sleep for 100 milliseconds
 
     def lap_reset(self):
         if self.stopwatch.running:
             self.lap()
         else:
-            self.reset()
+            self.stopwatch.reset()
+            self.label.config(text="00:00.00")
+            self.lap_listbox.delete(0, tk.END)
 
     def reset(self):
         self.stopwatch.reset()
@@ -548,31 +560,19 @@ class YACA:
         self.root.geometry(f'{width}x{height}+{x}+{y}')
 
     def check_user_in_db(self, user_info):
-        print(f"Connecting to DB with host={os.getenv('MYSQL_HOST')}, user={os.getenv('MYSQL_USER')}, database={os.getenv('MYSQL_DATABASE')}")  # Debug print
-        conn = mysql.connector.connect(
-            host=os.getenv('MYSQL_HOST'),
-            user=os.getenv('MYSQL_USER'),
-            password=os.getenv('MYSQL_PASSWORD'),
-            database=os.getenv('MYSQL_DATABASE')
-        )
+        conn = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/yaca.db')  # Connect to SQLite database
         cursor = conn.cursor()
-        cursor.execute('SELECT * FROM users WHERE id = %s', (user_info['id'],))
+        cursor.execute('SELECT * FROM users WHERE id = ?', (user_info['id'],))
         user = cursor.fetchone()
         conn.close()
-        print(f"Checking user in DB: {user_info['id']} - Found: {user}")  # Debug print
         return user is not None
 
     def ensure_user_in_db(self, user_info):
         if not self.check_user_in_db(user_info):
-            conn = mysql.connector.connect(
-                host=os.getenv('MYSQL_HOST'),
-                user=os.getenv('MYSQL_USER'),
-                password=os.getenv('MYSQL_PASSWORD'),
-                database=os.getenv('MYSQL_DATABASE')
-            )
+            conn = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/yaca.db')  # Connect to SQLite database
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO users (id, name, email) VALUES (%s, %s, %s)
+                INSERT INTO users (id, name, email) VALUES (?, ?, ?)
             ''', (user_info['id'], f"{user_info['first_name']} {user_info['last_name']}", user_info['email']))
             conn.commit()
             conn.close()
@@ -596,6 +596,15 @@ class YACA:
             print("Fetched and displayed calendar events.")
         except Exception as e:
             print(f"Error fetching calendar events: {e}")
+            if 'invalid_grant' in str(e):
+                token_file = f'token_{self.user_info["email"]}.json'
+                if os.path.exists(token_file):
+                    os.remove(token_file)  # Remove the invalid token file
+                    print("Removed invalid token file. Please log in again.")
+                self.calendar_listbox.config(state=tk.NORMAL)
+                self.calendar_listbox.delete(1.0, tk.END)
+                self.calendar_listbox.insert(tk.END, "Invalid credentials. Please log in again.\n")
+                self.calendar_listbox.config(state=tk.DISABLED)
 
     def update_calendar_dropdown(self):
         menu = self.calendar_dropdown["menu"]
@@ -670,6 +679,118 @@ class YACA:
     def auto_refresh_news(self):
         self.fetch_news()  # Fetch and display news
         self.root.after(300000, self.auto_refresh_news)  # Schedule the next refresh
+
+    def create_virtual_assistant(self):
+        self.recognizer = sr.Recognizer()
+        self.engine = pyttsx3.init()
+
+    def listen_for_command(self):
+        self.listen_button.config(text="Listening")  # Change the button label to "Listening"
+        self.root.update_idletasks()  # Ensure the UI updates immediately
+        
+        with sr.Microphone() as source:
+            print("Listening...")
+            try:
+                audio = self.recognizer.listen(source, timeout=5)  # Listen for at most 5 seconds
+                command = self.recognizer.recognize_google(audio)
+                print(f"You: {command}")
+                response = self.process_va_command(command)
+                print(f"Assistant: {response}")
+                self.speak(response)
+            except sr.WaitTimeoutError:
+                print("Assistant: No command heard within the time limit.")
+            except sr.UnknownValueError:
+                print("Assistant: Sorry, I didn't catch that.")
+                self.speak("Sorry, I didn't catch that.")
+            except sr.RequestError as e:
+                print(f"Assistant: Could not request results; {e}")
+                self.speak(f"Could not request results; {e}")
+            finally:
+                self.listen_button.config(text="Assistant")  # Change the button label back to "Assistant"
+                self.root.update_idletasks()  # Ensure the UI updates immediately
+
+    def speak(self, text):
+        self.engine.say(text)
+        self.engine.runAndWait()
+
+    def process_va_command(self, command):
+        command = command.lower()
+        if "what time is it" in command:
+            return datetime.now().strftime("%H:%M:%S")
+        elif "what date is it" in command:
+            return datetime.now().strftime("%A, %B %d, %Y")
+        elif "what day is it" in command:
+            return datetime.now().strftime("%A")
+        elif "how's the weather today" in command:
+            if hasattr(self, 'current_weather'):
+                unit = self.unit_var.get()
+                temperature = self.current_weather['temperature']
+                humidity = self.current_weather['humidity']
+                if unit == "Imperial":
+                    temperature = temperature * 9/5 + 32
+                    return f"Today's temperature is {temperature:.1f}°F and humidity is {humidity}%."
+                else:
+                    return f"Today's temperature is {temperature}°C and humidity is {humidity}%."
+            else:
+                return "Weather data is not available right now."
+        elif "what's the temperature today" in command:
+            if hasattr(self, 'current_weather'):
+                unit = self.unit_var.get()
+                temperature = self.current_weather['temperature']
+                if unit == "Imperial":
+                    temperature = temperature * 9/5 + 32
+                    return f"Today's temperature is {temperature:.1f}°F."
+                else:
+                    return f"Today's temperature is {temperature}°C."
+            else:
+                return "Temperature data is not available right now."
+        elif "what's the humidity today" in command:
+            if hasattr(self, 'current_weather'):
+                humidity = self.current_weather['humidity']
+                return f"Today's humidity is {humidity}%."
+            else:
+                return "Humidity data is not available right now."
+        elif "what's the precipitation today" in command:
+            if hasattr(self, 'current_weather'):
+                unit = self.unit_var.get()
+                precipitation = self.current_weather['precipitation']
+                if unit == "Imperial":
+                    precipitation = precipitation / 25.4  # Convert mm to inches
+                    return f"Today's precipitation is {precipitation:.2f} inches."
+                else:
+                    return f"Today's precipitation is {precipitation} mm."
+            else:
+                return "Precipitation data is not available right now."
+        elif "what time is the sunrise today" in command:
+            if hasattr(self, 'current_weather'):
+                sunrise = self.current_weather['sunrise']
+                sunrise_time = datetime.strptime(sunrise, "%I:%M:%S %p").strftime("%I %M %p").lstrip("0").replace(" 0", " ")
+                return f"Today's sunrise is at {sunrise_time}."
+            else:
+                return "Sunrise data is not available right now."
+        elif "what time is the sunset today" in command:
+            if hasattr(self, 'current_weather'):
+                sunset = self.current_weather['sunset']
+                sunset_time = datetime.strptime(sunset, "%I:%M:%S %p").strftime("%I %M %p").lstrip("0").replace(" 0", " ")
+                return f"Today's sunset is at {sunset_time}."
+            else:
+                return "Sunset data is not available right now."
+        elif "news" in command:
+            return "Fetching news headlines..."  # You can integrate with the existing news fetching function
+        elif "thank you" in command:
+            return "You are very welcome!"
+        elif "tell me a lie" in command:
+            return "You are quite a handsome chap!"
+        elif "humor me" in command:
+            return "Why did the scarecrow win an award? Because he was outstanding in his field!"
+        elif "terminate" in command:
+            return "Talk to you later, ciao!"
+        else:
+            return "Sorry, I didn't understand that command."
+
+    def save_alarm_callback(self):
+        # Define the callback function for saving alarms
+        print("Alarm saved successfully.")
 
 if __name__ == "__main__":
     def on_success(current_root, user_info):

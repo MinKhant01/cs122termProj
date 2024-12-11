@@ -106,20 +106,25 @@ def get_google_calendar_events(user_email):
                 print("Failed to decode token JSON.")
                 creds = None
     if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-            print("Refreshed expired credentials.")
-        else:
-            flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-            creds = flow.run_local_server(port=0)
-            print("Obtained new credentials via SSO.")
-        with open(TOKEN_FILE, 'w') as token:
-            token.write(creds.to_json())
-            print("Saved credentials to token file.")
-
-    if not creds or not creds.valid:
-        print("Failed to obtain valid credentials.")
-        return []
+        try:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+                print("Refreshed expired credentials.")
+            else:
+                flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
+                creds = flow.run_local_server(port=0)
+                print("Obtained new credentials via SSO.")
+            with open(TOKEN_FILE, 'w') as token:
+                token.write(creds.to_json())
+                print("Saved credentials to token file.")
+        except Exception as e:
+            print(f"Failed to obtain valid credentials: {e}")
+            if 'invalid_grant' in str(e):
+                if os.path.exists(TOKEN_FILE):
+                    os.remove(TOKEN_FILE)  # Remove the invalid token file
+                    print("Removed invalid token file. Please log in again.")
+                return []  # Return an empty list to indicate failure
+            return []
 
     service = build('calendar', 'v3', credentials=creds)
 

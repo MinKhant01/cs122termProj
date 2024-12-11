@@ -4,9 +4,6 @@ class Stopwatch:
         self.time = 0  # Time in milliseconds
         self.laps = []
 
-    def update_time(self):
-        self.time += 10  # Increment by 10 milliseconds
-
     def get_time(self):
         minutes = self.time // 60000
         seconds = (self.time // 1000) % 60

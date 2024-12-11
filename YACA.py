@@ -19,6 +19,39 @@ from google_cal import get_google_calendar_events  # Import the function to get 
 # Load environment variables from .env file
 load_dotenv()
 
+class ToolTip:
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tooltip = None
+        self.widget.bind("<Enter>", self.schedule_tooltip)
+        self.widget.bind("<Leave>", self.hide_tooltip)
+
+    def schedule_tooltip(self, event=None):
+        self.cancel_tooltip()
+        self.tooltip_id = self.widget.after(2000, self.show_tooltip)
+
+    def show_tooltip(self, event=None):
+        x, y, _, _ = self.widget.bbox("insert")
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 25
+        self.tooltip = tk.Toplevel(self.widget)
+        self.tooltip.wm_overrideredirect(True)
+        self.tooltip.wm_geometry(f"+{x}+{y}")
+        label = tk.Label(self.tooltip, text=self.text, background="black", relief="solid", borderwidth=1, font=("Helvetica", 10))
+        label.pack()
+
+    def hide_tooltip(self, event=None):
+        self.cancel_tooltip()
+        if self.tooltip:
+            self.tooltip.destroy()
+            self.tooltip = None
+
+    def cancel_tooltip(self):
+        if hasattr(self, 'tooltip_id'):
+            self.widget.after_cancel(self.tooltip_id)
+            self.tooltip_id = None
+
 class YACA:
     def __init__(self, root, user_info):
         self.root = root
@@ -38,12 +71,14 @@ class YACA:
         
         self.create_menu()
         self.create_logout_button()  # Add this line to create the logout button
+        self.create_nora_button()  # Add this line to create the Nora button
+        
+        self.va_process = None  # Initialize the VA process to None
         
         self.root.grid_rowconfigure(0, weight=0)  # Ensure the top row does not expand
-        self.root.grid_rowconfigure(1, weight=1)  # Adjust the weight of other rows
-        self.root.grid_rowconfigure(2, weight=1)
-        self.root.grid_rowconfigure(3, weight=1)
-        self.root.grid_rowconfigure(4, weight=1)  # Add an extra row for the forecast button
+        self.root.grid_rowconfigure(1, weight=0)
+        self.root.grid_rowconfigure(2, weight=0)
+        self.root.grid_rowconfigure(3, weight=1)  # Ensure the news frame expands
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_columnconfigure(1, weight=1)
         self.root.grid_columnconfigure(2, weight=1)
@@ -176,6 +211,11 @@ class YACA:
     def create_logout_button(self):
         self.logout_button = tk.Button(self.root, text="Logout", command=self.logout)
         self.logout_button.grid(row=0, column=0, sticky="nw", padx=(10, 0), pady=(10, 0))  # Position the logout button
+
+    def create_nora_button(self):
+        self.nora_button = tk.Button(self.root, text="Nora")
+        self.nora_button.grid(row=0, column=1, sticky="nw", padx=(5, 0), pady=(10, 0))  # Position the Nora button with minimal space
+        ToolTip(self.nora_button, "Your virtual assistant in progress ... !")
 
     def logout(self):
         if self.root.winfo_exists():  # Check if the root window exists
@@ -423,6 +463,9 @@ class YACA:
         self.update_forecast_display("All")
 
     def update_forecast_display(self, _=None):
+        if self.forecast_frame is None:
+            return  # Exit the function if forecast_frame is not initialized
+        
         for widget in self.forecast_frame.winfo_children():
             widget.destroy()
         

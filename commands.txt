@@ -1,0 +1,30 @@
+voice command: What time is it?
+action: The application checks and returns the current time. The application prints the return result in console, as well as converted to speech for the user to hear.
+
+voice command: What day is it?
+action: The application checks and returns the current day. The application prints the return result in console, as well as converted to speech for the user to hear.
+
+voice command: What date is it?
+action: The application checks and returns the current date. The application prints the return result in console, as well as converted to speech for the user to hear.
+
+voice command: Who am I?
+action:
+
+voice command: How many events do I have today?
+
+voice command: How many events do I have tomorrow?
+
+voice command: Tell me some news.
+
+voice command: How's the weather today?
+
+voice command: Tell me a lie.
+action: The application responds to the user with "You are quite a handsome chap!"
+
+voice command: Sleep
+action: The application is terminated.
+
+voice command: thank you
+action: The application response to the user with "You are very welcome!"
+
+let's add support for the following additional voice commands. Do not change any exisitng code.

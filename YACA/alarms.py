@@ -1,9 +1,8 @@
 import tkinter as tk
-import sqlite3  # Replace mysql.connector with sqlite3
+import sqlite3
 from datetime import datetime, timedelta
 import pygame
 from dotenv import load_dotenv
-import os
 
 class Alarms(tk.Frame):
     def __init__(self, parent, user_id, save_alarm_callback):

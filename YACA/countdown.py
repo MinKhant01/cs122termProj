@@ -156,7 +156,7 @@ class Countdown(tk.Frame):
             for index in selected[::-1]:  # Reverse to avoid index shifting issues
                 time_str = self.active_listbox.get(index)
                 if time_str in self.running_timers:
-                    del self.running_timers[time_str]
+                    del self.running_timers[time_str]  # Remove the timer from running_timers
                 self.active_listbox.delete(index)
                 hours, minutes, seconds = map(int, time_str.split(':'))
                 cursor = self.db_connection.cursor()

@@ -13,6 +13,7 @@ class Alarms(tk.Frame):
         load_dotenv('/Users/ekhant/Documents/FA24/CS122/termProj/.env')
         self.db_connection = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/yaca.db')  # Connect to SQLite database
         self.db_cursor = self.db_connection.cursor()
+        self.create_users_table()  # Ensure the users table is created
         self.create_table()
         self.create_widgets()
         self.load_alarms()
@@ -22,6 +23,19 @@ class Alarms(tk.Frame):
         self.alarm_window_open = False
         pygame.mixer.init()
         self.last_triggered_time = None
+
+    def create_users_table(self):
+        conn = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/YACA/yaca.db')  # Connect to SQLite database
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL
+            )
+        ''')
+        conn.commit()
+        conn.close()
 
     def create_table(self):
         self.db_cursor.execute('''

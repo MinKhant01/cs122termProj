@@ -17,7 +17,6 @@ import os  # Import os
 from google_cal import get_google_calendar_events  # Import the function to get calendar events
 import speech_recognition as sr  # Import speech_recognition
 import pyttsx3  # Import pyttsx3
-import threading  # Add this import
 
 # Load environment variables from .env file
 load_dotenv()
@@ -193,6 +192,7 @@ class YACA:
         self.root.after(0, self.fetch_weather)  # Fetch and display weather initially
         self.root.after(300000, self.auto_refresh_news)  # Schedule automatic news refresh every 5 minutes
         self.show_clock()  # Show the clock view initially
+        self.create_users_table()  # Ensure the users table is created
         self.ensure_user_in_db(user_info)  # Ensure the user is in the database
 
         self.calendar_option.trace_add('write', lambda *args: self.update_calendar_events(self.calendar_option.get()))
@@ -567,9 +567,23 @@ class YACA:
         conn.close()
         return user is not None
 
+    def create_users_table(self):
+        conn = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/YACA/yaca.db')  # Connect to SQLite database
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL
+            )
+        ''')
+        conn.commit()
+        conn.close()
+
     def ensure_user_in_db(self, user_info):
+        self.create_users_table()  # Ensure the users table is created
         if not self.check_user_in_db(user_info):
-            conn = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/yaca.db')  # Connect to SQLite database
+            conn = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/YACA/yaca.db')  # Connect to SQLite database
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO users (id, name, email) VALUES (?, ?, ?)

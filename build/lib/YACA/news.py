@@ -9,6 +9,9 @@ def get_nytimes_top_stories():
     headlines = []
     try:
         nytimes_key = os.getenv('NYTimesAPIKey')
+        if not nytimes_key:
+            raise ValueError("NYTimes API key is missing")
+        
         nytimes_url = f"https://api.nytimes.com/svc/topstories/v2/home.json?api-key={nytimes_key}"
         nytimes_response = requests.get(nytimes_url)
         
@@ -23,6 +26,8 @@ def get_nytimes_top_stories():
                         'source': 'NYTimes',
                         'report_date': article['published_date']
                     })
+        else:
+            raise ValueError(f"NYTimes API request failed with status code {nytimes_response.status_code}")
     except Exception as e:
         headlines.append({
             'title': 'Error fetching NYTimes news',

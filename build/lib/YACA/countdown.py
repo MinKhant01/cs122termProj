@@ -34,6 +34,9 @@ class Countdown(tk.Frame):
         self.activate_button = tk.Button(self, text="Activate Timer", command=self.start, state=tk.DISABLED)
         self.activate_button.pack(pady=10)
 
+        self.delete_button = tk.Button(self, text="Delete Countdown", command=self.delete_countdown, state=tk.DISABLED)
+        self.delete_button.pack(pady=10)
+
         self.active_label = tk.Label(self, text="Active Countdowns", font=("Helvetica", 14))
         self.active_label.pack()
 
@@ -77,8 +80,10 @@ class Countdown(tk.Frame):
     def on_select_saved(self, event):
         if self.saved_listbox.curselection():
             self.activate_button.config(state=tk.NORMAL)
+            self.delete_button.config(state=tk.NORMAL)
         else:
             self.activate_button.config(state=tk.DISABLED)
+            self.delete_button.config(state=tk.DISABLED)
 
     def on_select_active(self, event):
         if self.active_listbox.curselection():
@@ -151,14 +156,28 @@ class Countdown(tk.Frame):
             for index in selected[::-1]:  # Reverse to avoid index shifting issues
                 time_str = self.active_listbox.get(index)
                 if time_str in self.running_timers:
-                    del self.running_timers[time_str]
+                    del self.running_timers[time_str]  # Remove the timer from running_timers
                 self.active_listbox.delete(index)
                 hours, minutes, seconds = map(int, time_str.split(':'))
                 cursor = self.db_connection.cursor()
-                cursor.execute("UPDATE countdowns SET active = 0 WHERE hours = ? AND minutes = ? AND seconds = ?",
-                               (hours, minutes, seconds))
+                cursor.execute("UPDATE countdowns SET active = 0 WHERE hours = ? AND minutes = ? AND seconds = ? AND user_id = ?",
+                               (hours, minutes, seconds, self.user_id))
                 self.db_connection.commit()
             self.terminate_button.config(state=tk.DISABLED)
+
+    def delete_countdown(self):
+        selected = self.saved_listbox.curselection()
+        if selected:
+            for index in selected[::-1]:  # Reverse to avoid index shifting issues
+                time_str, label = self.saved_listbox.get(index).split(' - ')
+                hours, minutes, seconds = map(int, time_str.split(':'))
+                self.saved_listbox.delete(index)
+                cursor = self.db_connection.cursor()
+                cursor.execute("DELETE FROM countdowns WHERE hours = ? AND minutes = ? AND seconds = ? AND label = ? AND user_id = ?",
+                               (hours, minutes, seconds, label, self.user_id))
+                self.db_connection.commit()
+            self.delete_button.config(state=tk.DISABLED)
+            self.activate_button.config(state=tk.DISABLED)
 
     def reset(self):
         self.running_timers.clear()

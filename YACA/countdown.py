@@ -1,16 +1,15 @@
 import tkinter as tk
-import time
-import pygame  # For playing sound
-import sqlite3  # For database operations
+import pygame
+import sqlite3
 
 class Countdown(tk.Frame):
     def __init__(self, master, user_id):
         super().__init__(master)
         self.master = master
-        self.user_id = user_id  # Store the user_id
-        self.running_timers = {}  # Dictionary to store running timers and their remaining time
+        self.user_id = user_id
+        self.running_timers = {}
 
-        pygame.mixer.init()  # Initialize the pygame mixer
+        pygame.mixer.init()
 
         self.add_button = tk.Button(self, text="Add Countdown", command=self.add_countdown)
         self.add_button.pack(pady=10)
@@ -56,7 +55,7 @@ class Countdown(tk.Frame):
         self.terminate_button = tk.Button(self, text="Terminate Timer", command=self.terminate, state=tk.DISABLED)
         self.terminate_button.pack(pady=10)
 
-        self.alarm_windows = {}  # Dictionary to store alarm windows and their sounds
+        self.alarm_windows = {}
 
         self.db_connection = sqlite3.connect('path_to_your_database.db')
         self.create_table_if_not_exists()
@@ -153,10 +152,10 @@ class Countdown(tk.Frame):
     def terminate(self):
         selected = self.active_listbox.curselection()
         if selected:
-            for index in selected[::-1]:  # Reverse to avoid index shifting issues
+            for index in selected[::-1]:
                 time_str = self.active_listbox.get(index)
                 if time_str in self.running_timers:
-                    del self.running_timers[time_str]  # Remove the timer from running_timers
+                    del self.running_timers[time_str]
                 self.active_listbox.delete(index)
                 hours, minutes, seconds = map(int, time_str.split(':'))
                 cursor = self.db_connection.cursor()
@@ -168,7 +167,7 @@ class Countdown(tk.Frame):
     def delete_countdown(self):
         selected = self.saved_listbox.curselection()
         if selected:
-            for index in selected[::-1]:  # Reverse to avoid index shifting issues
+            for index in selected[::-1]:
                 time_str, label = self.saved_listbox.get(index).split(' - ')
                 hours, minutes, seconds = map(int, time_str.split(':'))
                 self.saved_listbox.delete(index)
@@ -215,7 +214,7 @@ class Countdown(tk.Frame):
 
         self.alarm_windows[time_str] = turn_off_window
         pygame.mixer.music.load("alarm.wav")
-        pygame.mixer.music.play(-1)  # Play the sound in a loop
+        pygame.mixer.music.play(-1)  # play the sound in a loop
 
     def turn_off(self, time_str):
         if time_str in self.alarm_windows:

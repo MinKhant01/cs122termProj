@@ -70,7 +70,7 @@ def main():
     start_time = time.time()
     engine = pyttsx3.init()
     rate = engine.getProperty('rate')
-    engine.setProperty('rate', rate - 25)  # Slow down the speech rate
+    engine.setProperty('rate', rate - 25)  # slow down the speech rate
     end_time = time.time()
     print(f"Text-to-speech engine initialized. Time Taken: {end_time - start_time:.2f} seconds")
 
@@ -97,11 +97,11 @@ def main():
                 error_message = "I didn't catch that. What did you say?\nError: {}".format(response["error"])
                 print(error_message)
                 text_to_speech(engine, error_message)
-            time.sleep(0.5)  # Add a short delay before listening again
+            time.sleep(0.5)
         except Exception as e:
             print(f"An error occurred: {e}")
             text_to_speech(engine, f"An error occurred: {e}")
-            break  # Break the loop if an error occurs
+            break  # break the loop if an error occurs
 
 if __name__ == "__main__":
     main()

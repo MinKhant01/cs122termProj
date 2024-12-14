@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='YetAnotherClockApp',
-    version='0.1.3',
+    version='0.1.4',
     author='Edward Khant',
     author_email='minthwin2000@gmail.com',
     description='A helpful clock app',

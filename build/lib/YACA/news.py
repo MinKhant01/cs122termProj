@@ -1,8 +1,6 @@
 import requests
 import os
 from dotenv import load_dotenv
-
-# Load environment variables from .env file
 load_dotenv()
 
 def get_nytimes_top_stories():

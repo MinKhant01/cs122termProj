@@ -1,7 +1,7 @@
 class Stopwatch:
     def __init__(self):
         self.running = False
-        self.time = 0  # Time in milliseconds
+        self.time = 0
         self.laps = []
 
     def get_time(self):

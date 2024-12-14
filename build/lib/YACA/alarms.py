@@ -10,9 +10,9 @@ class Alarms(tk.Frame):
         self.user_id = user_id
         self.save_alarm_callback = save_alarm_callback
         load_dotenv('/Users/ekhant/Documents/FA24/CS122/termProj/.env')
-        self.db_connection = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/yaca.db')  # Connect to SQLite database
+        self.db_connection = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/yaca.db')
         self.db_cursor = self.db_connection.cursor()
-        self.create_users_table()  # Ensure the users table is created
+        self.create_users_table()
         self.create_table()
         self.create_widgets()
         self.load_alarms()
@@ -24,7 +24,7 @@ class Alarms(tk.Frame):
         self.last_triggered_time = None
 
     def create_users_table(self):
-        conn = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/YACA/yaca.db')  # Connect to SQLite database
+        conn = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/YACA/yaca.db')
         cursor = conn.cursor()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (

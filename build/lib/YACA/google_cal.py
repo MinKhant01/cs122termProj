@@ -120,9 +120,9 @@ def get_google_calendar_events(user_email):
             print(f"Failed to obtain valid credentials: {e}")
             if 'invalid_grant' in str(e):
                 if os.path.exists(TOKEN_FILE):
-                    os.remove(TOKEN_FILE)  # Remove the invalid token file
+                    os.remove(TOKEN_FILE)
                     print("Removed invalid token file. Please log in again.")
-                return []  # Return an empty list to indicate failure
+                return []
             return []
 
     service = build('calendar', 'v3', credentials=creds)
@@ -135,4 +135,4 @@ def get_google_calendar_events(user_email):
                                           timeMax=seven_days_later, singleEvents=True,
                                           orderBy='startTime').execute()
     events = events_result.get('items', [])
-    return [GoogleCalendarEvent(event) for event in events]  # Return list of GoogleCalendarEvent objects
+    return [GoogleCalendarEvent(event) for event in events]

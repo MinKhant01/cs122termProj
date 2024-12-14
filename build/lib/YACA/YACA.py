@@ -2,23 +2,21 @@ import tkinter as tk
 import webbrowser
 import threading
 import time
-from datetime import datetime, timedelta  # Add timedelta import
+from datetime import datetime, timedelta
 from stopwatch import Stopwatch
 from clockface import ClockFace
 from alarms import Alarms
 from countdown import Countdown
-from news import get_top_headlines  # Import the get_top_headlines function
-from weather import get_weather_data, get_forecast_data, parse_weather_data, parse_forecast_data, get_current_coordinates, get_city_name  # Import weather functions
+from news import get_top_headlines
+from weather import get_weather_data, get_forecast_data, parse_weather_data, parse_forecast_data, get_current_coordinates, get_city_name
 from signin import SignInPage
 from google_sso import google_login, get_user_info
-import sqlite3  # Replace mysql.connector with sqlite3
-from dotenv import load_dotenv  # Import load_dotenv
-import os  # Import os
-from google_cal import get_google_calendar_events  # Import the function to get calendar events
-import speech_recognition as sr  # Import speech_recognition
-import pyttsx3  # Import pyttsx3
-
-# Load environment variables from .env file
+import speech_recognition as sr                     # Import speech_recognition for VA's speech recognition
+import pyttsx3                                      # Import pyttsx3 for VA's text-to-speech
+import sqlite3                                      # lightweight portable db to save alarms & coutdowns with user_id
+import os
+from google_cal import get_google_calendar_events
+from dotenv import load_dotenv
 load_dotenv()
 
 class ToolTip:
@@ -61,77 +59,86 @@ class YACA:
         self.root.title(f"YACA - Logged in as {self.user_info['first_name']} {self.user_info['last_name']}")
         
         # Set the size of the application window
-        window_width = 1200  # Set your desired width
-        window_height = 850  # Set your desired height
-        self.root.geometry(f"{window_width}x{window_height}")
-        self.root.minsize(window_width, window_height)  # Set the minimum size
+        window_width = 1200                                         # Set the desired width
+        window_height = 850                                         # Set the desired height
+        self.root.geometry(f"{window_width}x{window_height}")       # Set the window size
+        self.root.minsize(window_width, window_height)              # Set the minimum size
         
-        self.center_window(window_width, window_height)  # Center the window
+        self.center_window(window_width, window_height)             # Center the window
         
-        self.unit_var = tk.StringVar()
-        self.unit_var.set("Imperial")  # Default value
+        self.unit_var = tk.StringVar()                              # scale for temperature and precipitation
+        self.unit_var.set("Imperial")                               # default scale
         
         self.create_menu()
-        self.create_logout_button()  # Add this line to create the logout button
+        self.create_logout_button()
         
-        self.va_process = None  # Initialize the VA process to None
+        self.va_process = None                                      # initialize the virtual assistant
         
-        self.root.grid_rowconfigure(0, weight=0)  # Ensure the top row does not expand
+        self.root.grid_rowconfigure(0, weight=0)
         self.root.grid_rowconfigure(1, weight=0)
         self.root.grid_rowconfigure(2, weight=0)
-        self.root.grid_rowconfigure(3, weight=1)  # Ensure the news frame expands
+        self.root.grid_rowconfigure(3, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_columnconfigure(1, weight=1)
         self.root.grid_columnconfigure(2, weight=1)
         
+        # logout button
         self.logout_button = tk.Button(self.root, text="Logout", command=self.logout)
-        self.logout_button.grid(row=0, column=0, sticky="nw", padx=(10, 0), pady=(10, 0))  # Position the logout button
+        self.logout_button.grid(row=0, column=0, sticky="nw", padx=(10, 0), pady=(10, 0))
         
+        # listen button
         self.listen_button = tk.Button(self.root, text="Assistant", command=self.listen_for_command)
-        self.listen_button.grid(row=0, column=1, sticky="nw", padx=(10, 0), pady=(10, 0))  # Position the listen button next to the logout button
+        self.listen_button.grid(row=0, column=1, sticky="nw", padx=(10, 0), pady=(10, 0))
         
+        # profile label
         self.profile_label = tk.Label(root, text=f"Logged in as: {self.user_info['first_name']} {self.user_info['last_name']}", font=("Helvetica", 12), width=30, anchor="e")
-        self.profile_label.grid(row=0, column=2, sticky="ne", padx=(0, 10))  # Align to the right with padding
+        self.profile_label.grid(row=0, column=2, sticky="ne", padx=(0, 10))
         
-        self.clock_face = ClockFace(root)  # Initialize the ClockFace
-        self.clock_face.grid(row=0, column=1, pady=(10, 0), sticky="n")  # Use grid layout and reduce padding
+        # main clock face
+        self.clock_face = ClockFace(root)
+        self.clock_face.grid(row=0, column=1, pady=(10, 0), sticky="n")
         
+        # date label
         self.date_label = tk.Label(root, font=("Helvetica", 16))
-        self.date_label.grid(row=1, column=1, pady=(0, 10), sticky="n")  # Ensure date_label is always visible
+        self.date_label.grid(row=1, column=1, pady=(0, 10), sticky="n")
         self.update_date()
         
-        self.weather_frame = tk.Frame(root)  # Initialize the Weather frame
-        self.weather_frame.grid(row=2, column=0, pady=10, sticky="nsew")  # Adjust grid position
+        # weather frame
+        self.weather_frame = tk.Frame(root)
+        self.weather_frame.grid(row=2, column=0, pady=10, sticky="nsew")
         
-        self.weather_title_frame = tk.Frame(self.weather_frame)  # Create a frame for the weather title
-        self.weather_title_frame.pack(pady=(2, 5))  # Reduce top padding
+        self.weather_title_frame = tk.Frame(self.weather_frame)
+        self.weather_title_frame.pack(pady=(2, 5))
 
         self.weather_title = tk.Label(self.weather_title_frame, text="Today's Weather", font=("Helvetica", 16, "bold"))
         self.weather_title.pack(side="left")
 
         self.current_weather_table = tk.Frame(self.weather_frame)
-        self.current_weather_table.pack(pady=(10, 0))  # Adjust padding to push down the table
+        self.current_weather_table.pack(pady=(10, 0))
 
+        # add forecast button to complement the weather frame
         self.forecast_button = tk.Button(self.weather_frame, text="View 10-Day Forecast", command=self.show_forecast)
-        self.forecast_button.pack(pady=(5, 10))  # Adjust padding to push down the button
+        self.forecast_button.pack(pady=(5, 10))
         
-        self.calendar_frame = tk.Frame(root)  # Initialize the Calendar frame
-        self.calendar_frame.grid(row=2, column=1, pady=10, sticky="nsew")  # Adjust grid position
+        # calendar frame
+        self.calendar_frame = tk.Frame(root)
+        self.calendar_frame.grid(row=2, column=1, pady=10, sticky="nsew")
         
-        self.calendar_title_frame = tk.Frame(self.calendar_frame)  # Create a frame for the title and dropdown
-        self.calendar_title_frame.pack(pady=(2, 5))  # Reduce top padding
+        self.calendar_title_frame = tk.Frame(self.calendar_frame)
+        self.calendar_title_frame.pack(pady=(2, 5))
         
         self.calendar_title = tk.Label(self.calendar_title_frame, text="Calendar Events For: ", font=("Helvetica", 16, "bold"))
         self.calendar_title.pack(side="left")
         
+        # default calendar dropdown option
         self.calendar_option = tk.StringVar(self.calendar_frame)
-        self.calendar_option.set(f"Today ({datetime.now().strftime('%Y-%m-%d')})")  # Default value
+        self.calendar_option.set(f"Today ({datetime.now().strftime('%Y-%m-%d')})")
         
         self.calendar_dropdown = tk.OptionMenu(self.calendar_title_frame, self.calendar_option, *self.get_next_seven_days(), command=self.update_calendar_events)
         self.calendar_dropdown.pack(side="left")
         
         self.refresh_button = tk.Button(self.calendar_title_frame, text="Refresh", command=self.refresh_calendar_events)
-        self.refresh_button.pack(side="left", padx=(10, 0))  # Add padding to the left
+        self.refresh_button.pack(side="left", padx=(10, 0))
         
         self.calendar_display_frame = tk.Frame(self.calendar_frame)
         self.calendar_display_frame.pack(pady=10, fill="both", expand=True)
@@ -144,16 +151,17 @@ class YACA:
         
         self.calendar_scrollbar.config(command=self.calendar_listbox.yview)
         
-        self.fetch_calendar_events()  # Fetch and display calendar events initially
-        self.root.after(60000, self.auto_refresh_calendar_events)  # Schedule automatic refresh every 60 seconds
+        self.fetch_calendar_events()                                                # initial fetch and display of calendar events
+        self.root.after(60000, self.auto_refresh_calendar_events)                   # scheduled automatic refresh every 60 seconds
         
-        self.news_frame = tk.Frame(root)  # Initialize the News frame
-        self.news_frame.grid(row=3, column=0, columnspan=3, sticky="nsew")  # Make the news frame fill the remaining space
+        # news frame
+        self.news_frame = tk.Frame(root)
+        self.news_frame.grid(row=3, column=0, columnspan=3, sticky="nsew")
         self.news_frame.grid_rowconfigure(0, weight=0)
         self.news_frame.grid_rowconfigure(1, weight=1)
         self.news_frame.grid_columnconfigure(0, weight=1)
         
-        self.news_title_frame = tk.Frame(self.news_frame)  # Create a frame for the news title and refresh button
+        self.news_title_frame = tk.Frame(self.news_frame)
         self.news_title_frame.grid(row=0, column=0, pady=(10, 0), sticky="ew")
         
         self.news_title = tk.Label(self.news_title_frame, text="Today's Top News", font=("Helvetica", 16, "bold"))
@@ -171,32 +179,35 @@ class YACA:
         
         self.news_listbox.config(yscrollcommand=self.news_scrollbar.set)
         
-        self.stopwatch_frame = None  # Initialize stopwatch_frame to None
-        self.stopwatch = None  # Initialize stopwatch to None
+        # stopwatch init
+        self.stopwatch_frame = None
+        self.stopwatch = None
         
-        self.alarms_frame = None  # Initialize alarms_frame to None
-        self.alarms = None  # Initialize alarms to None
+        # alarms init
+        self.alarms_frame = None
+        self.alarms = None
         
-        self.countdown_frame = None  # Initialize countdown_frame to None
-        self.countdown = None  # Initialize countdown to None
+        # countdown init
+        self.countdown_frame = None
+        self.countdown = None
         
-        self.news_fetching = False  # Add a flag to indicate if news is being fetched
-        self.news_cache = None  # Add a cache for news headlines
-        self.news_cache_time = None  # Add a timestamp for the cache
-        self.cache_duration = 600  # Cache duration in seconds (e.g., 10 minutes)
+        self.news_fetching = False
+        self.news_cache = None
+        self.news_cache_time = None
+        self.cache_duration = 600                                           # system cache duration in seconds, total of 10 mins
         
         self.forecast_frame = None  # Initialize forecast_frame to None
         
-        self.update_clock()  # Ensure the clockface thread is running
-        self.root.after(0, self.fetch_news)  # Fetch and display news initially
-        self.root.after(0, self.fetch_weather)  # Fetch and display weather initially
-        self.root.after(300000, self.auto_refresh_news)  # Schedule automatic news refresh every 5 minutes
-        self.show_clock()  # Show the clock view initially
-        self.create_users_table()  # Ensure the users table is created
-        self.ensure_user_in_db(user_info)  # Ensure the user is in the database
+        self.update_clock()
+        self.root.after(0, self.fetch_news)
+        self.root.after(0, self.fetch_weather)
+        self.root.after(300000, self.auto_refresh_news)
+        self.show_clock()
+        self.create_users_table()
+        self.ensure_user_in_db(user_info)                                     # ensure the user is in the database
 
         self.calendar_option.trace_add('write', lambda *args: self.update_calendar_events(self.calendar_option.get()))
-        self.create_virtual_assistant()  # Add this line to create the virtual assistant interface
+        self.create_virtual_assistant()
 
     def create_menu(self):
         menubar = tk.Menu(self.root)
@@ -216,11 +227,11 @@ class YACA:
 
     def create_logout_button(self):
         self.logout_button = tk.Button(self.root, text="Logout", command=self.logout)
-        self.logout_button.grid(row=0, column=0, sticky="nw", padx=(10, 0), pady=(10, 0))  # Position the logout button
+        self.logout_button.grid(row=0, column=0, sticky="nw", padx=(10, 0), pady=(10, 0))
 
     def logout(self):
-        if self.root.winfo_exists():  # Check if the root window exists
-            self.root.destroy()  # Destroy the current root window
+        if self.root.winfo_exists():            # check if the root window exists
+            self.root.destroy()                 # destroy the current root window
         new_root = tk.Tk()
         SignInPage(new_root, lambda user_info: on_success(new_root, user_info))
         new_root.mainloop()
@@ -235,24 +246,24 @@ class YACA:
 
     def show_clock(self):
         if self.stopwatch_frame:
-            self.stopwatch_frame.grid_forget()  # Ensure the stopwatch frame is hidden
+            self.stopwatch_frame.grid_forget()                      # ensure the stopwatch frame is hidden
         if self.alarms_frame:
-            self.alarms_frame.grid_forget()  # Ensure the alarms frame is hidden
+            self.alarms_frame.grid_forget()                         # ensure the alarms frame is hidden
         if self.countdown_frame:
-            self.countdown_frame.grid_forget()  # Ensure the countdown frame is hidden
+            self.countdown_frame.grid_forget()                      # ensure the countdown frame is hidden
         self.news_frame.grid_forget()
-        self.clock_face.grid(row=0, column=1, pady=(10, 0), sticky="n")  # Center the clock face
-        self.date_label.grid(row=1, column=1, pady=(0, 10), sticky="n")  # Ensure date_label is always visible
-        self.weather_frame.grid(row=2, column=0, pady=10, sticky="nsew")  # Show the weather frame in the left column
-        self.calendar_frame.grid(row=2, column=1, pady=10, sticky="nsew")  # Show the calendar frame in the right column
-        self.news_frame.grid(row=3, column=0, columnspan=3, sticky="nsew")  # Show the news frame below the calendar frame
-        self.profile_label.grid(row=0, column=2, sticky="ne", padx=(0, 10))  # Ensure profile label is at the top right
-        if not self.news_fetching:  # Check if news is already being fetched
+        self.clock_face.grid(row=0, column=1, pady=(10, 0), sticky="n")
+        self.date_label.grid(row=1, column=1, pady=(0, 10), sticky="n")
+        self.weather_frame.grid(row=2, column=0, pady=10, sticky="nsew")
+        self.calendar_frame.grid(row=2, column=1, pady=10, sticky="nsew")
+        self.news_frame.grid(row=3, column=0, columnspan=3, sticky="nsew")
+        self.profile_label.grid(row=0, column=2, sticky="ne", padx=(0, 10))
+        if not self.news_fetching:
             current_time = time.time()
             if self.news_cache and (current_time - self.news_cache_time < self.cache_duration):
-                self.display_news(self.news_cache, 0)  # Use cached news if valid
+                self.display_news(self.news_cache, 0)
             else:
-                self.fetch_news()  # Fetch and display news when the clock view is shown
+                self.fetch_news() 
         self.root.update_idletasks()
         self.root.geometry(f"{self.root.winfo_reqwidth()}x{self.root.winfo_reqheight()}")
 
@@ -287,73 +298,69 @@ class YACA:
         self.forecast_button.grid_forget()
         self.news_frame.grid_forget()
         if self.alarms_frame:
-            self.alarms_frame.grid_forget()  # Ensure the alarms frame is hidden
+            self.alarms_frame.grid_forget()
         if self.countdown_frame:
-            self.countdown_frame.grid_forget()  # Ensure the countdown frame is hidden
-        self.stopwatch_frame.grid(row=5, column=0, pady=20, sticky="n")  # Use grid instead of pack
-        self.calendar_frame.grid_forget()  # Ensure the calendar frame is hidden
-        self.date_label.grid(row=1, column=1, pady=(0, 10), sticky="n")  # Ensure date_label is always visible
-        self.profile_label.grid(row=0, column=2, sticky="ne", padx=(0, 10))  # Ensure profile label is at the top right
+            self.countdown_frame.grid_forget()
+        self.stopwatch_frame.grid(row=5, column=0, pady=20, sticky="n")
+        self.calendar_frame.grid_forget()
+        self.date_label.grid(row=1, column=1, pady=(0, 10), sticky="n")
+        self.profile_label.grid(row=0, column=2, sticky="ne", padx=(0, 10))
         self.root.update_idletasks()
         self.root.geometry(f"{self.root.winfo_reqwidth()}x{self.root.winfo_reqheight()}")
 
     def show_alarms(self):
         if self.alarms_frame is None:
             self.alarms_frame = tk.Frame(self.root)
-            self.ensure_user_in_db(self.user_info)  # Ensure the user is in the database
-            self.alarms = Alarms(self.alarms_frame, self.user_info['id'], self.save_alarm_callback)  # Pass user_id and save_alarm_callback to Alarms
-            self.alarms_frame.grid(row=5, column=0, pady=20, sticky="n")  # Use grid instead of pack
-            self.alarms.pack()  # Ensure the Alarms instance is packed within the frame
+            self.ensure_user_in_db(self.user_info)
+            self.alarms = Alarms(self.alarms_frame, self.user_info['id'], self.save_alarm_callback)
+            self.alarms_frame.grid(row=5, column=0, pady=20, sticky="n")
+            self.alarms.pack()
 
         self.clock_face.grid_forget()
         self.weather_frame.grid_forget()
         self.forecast_button.grid_forget()
         self.news_frame.grid_forget()
         if self.stopwatch_frame:
-            self.stopwatch_frame.grid_forget()  # Ensure the stopwatch frame is hidden
+            self.stopwatch_frame.grid_forget()
         if self.countdown_frame:
-            self.countdown_frame.grid_forget()  # Ensure the countdown frame is hidden
-        self.alarms_frame.grid(row=5, column=0, pady=20, sticky="n")  # Use grid instead of pack
-        self.calendar_frame.grid_forget()  # Ensure the calendar frame is hidden
-        self.date_label.grid(row=1, column=1, pady=(0, 10), sticky="n")  # Ensure date_label is always visible
-        self.profile_label.grid(row=0, column=2, sticky="ne", padx=(0, 10))  # Ensure profile label is at the top right
+            self.countdown_frame.grid_forget()
+        self.alarms_frame.grid(row=5, column=0, pady=20, sticky="n")
+        self.calendar_frame.grid_forget()
+        self.date_label.grid(row=1, column=1, pady=(0, 10), sticky="n")
+        self.profile_label.grid(row=0, column=2, sticky="ne", padx=(0, 10))
         self.root.update_idletasks()
         self.root.geometry(f"{self.root.winfo_reqwidth()}x{self.root.winfo_reqheight()}")
 
     def show_countdown(self):
         if self.countdown_frame is None:
             self.countdown_frame = tk.Frame(self.root)
-            self.countdown = Countdown(self.countdown_frame, self.user_info['id'])  # Pass user_id to Countdown
-            self.countdown.pack()  # Ensure the Countdown instance is packed within the frame
+            self.countdown = Countdown(self.countdown_frame, self.user_info['id'])
+            self.countdown.pack()
 
         self.clock_face.grid_forget()
         self.weather_frame.grid_forget()
         self.forecast_button.grid_forget()
         self.news_frame.grid_forget()
         if self.stopwatch_frame:
-            self.stopwatch_frame.grid_forget()  # Ensure the stopwatch frame is hidden
+            self.stopwatch_frame.grid_forget()
         if self.alarms_frame:
-            self.alarms_frame.grid_forget()  # Ensure the alarms frame is hidden
-        self.countdown_frame.grid(row=5, column=0, pady=20, sticky="n")  # Use grid instead of pack
-        self.calendar_frame.grid_forget()  # Ensure the calendar frame is hidden
-        self.date_label.grid(row=1, column=1, pady=(0, 10), sticky="n")  # Ensure date_label is always visible
-        self.profile_label.grid(row=0, column=2, sticky="ne", padx=(0, 10))  # Ensure profile label is at the top right
+            self.alarms_frame.grid_forget()
+        self.countdown_frame.grid(row=5, column=0, pady=20, sticky="n")
+        self.calendar_frame.grid_forget()
+        self.date_label.grid(row=1, column=1, pady=(0, 10), sticky="n")
+        self.profile_label.grid(row=0, column=2, sticky="ne", padx=(0, 10))
         self.root.update_idletasks()
         self.root.geometry(f"{self.root.winfo_reqwidth()}x{self.root.winfo_reqheight()}")
 
-    def show_news(self):
-        # Removed the show_news method
-        pass
-
     def fetch_news(self):
-        self.news_fetching = True  # Set the flag to True when fetching news
-        self.news_listbox.config(state=tk.NORMAL)  # Enable editing to update content
+        self.news_fetching = True
+        self.news_listbox.config(state=tk.NORMAL)
         self.news_listbox.delete(1.0, tk.END)
         self.news_listbox.insert(tk.END, "Your News Feed is loading...\n")
         
         def fetch_news_thread():
             start_time = time.time()
-            headlines = get_top_headlines()  # Use the function from news.py
+            headlines = get_top_headlines()
             end_time = time.time()
             time_taken = end_time - start_time
             if self.root.winfo_exists():
@@ -362,10 +369,10 @@ class YACA:
         self.root.after(0, fetch_news_thread)
 
     def display_news(self, headlines, time_taken):
-        self.news_fetching = False  # Reset the flag when news fetching is done
-        self.news_cache = headlines  # Cache the fetched news
-        self.news_cache_time = time.time()  # Update the cache timestamp
-        self.news_listbox.config(state=tk.NORMAL)  # Enable editing to update content
+        self.news_fetching = False                      # reset the flag when news fetching is done
+        self.news_cache = headlines                     # cache the fetched news
+        self.news_cache_time = time.time()              # update the cache timestamp
+        self.news_listbox.config(state=tk.NORMAL)       # enable editing to update content
         self.news_listbox.delete(1.0, tk.END)
         for headline in headlines:
             self.news_listbox.insert(tk.END, f"Title: {headline['title']}\n")
@@ -379,7 +386,7 @@ class YACA:
             self.news_listbox.tag_bind('url', '<Leave>', lambda e: e.widget.config(cursor=""))
             self.news_listbox.tag_bind('url', '<Button-1>', lambda e, url=headline['url']: self.open_url(url))
         self.news_listbox.insert(tk.END, f"\nTotal Time: {time_taken:.2f} seconds\n")
-        self.news_listbox.config(state=tk.DISABLED)  # Disable editing after updating content
+        self.news_listbox.config(state=tk.DISABLED)     # disable editing after updating content
 
     def open_url(self, url):
         if url:
@@ -388,8 +395,8 @@ class YACA:
     def fetch_weather(self):
         def fetch_weather_thread():
             try:
-                lat, lon = get_current_coordinates()  # Get the user's current coordinates
-                city = get_city_name(lat, lon)  # Get the city name from the coordinates
+                lat, lon = get_current_coordinates()                # get the user's current coordinates
+                city = get_city_name(lat, lon)                      # get the city name from the coordinates
                 weather_data = get_weather_data(lat, lon)
                 forecast_data = get_forecast_data(lat, lon)
                 current_weather = parse_weather_data(weather_data)
@@ -420,7 +427,7 @@ class YACA:
         if unit == "Imperial":
             temperature = self.current_weather['temperature'] * 9/5 + 32
             temperature_str = f"{temperature:.1f} °F"
-            precipitation = self.current_weather['precipitation'] / 25.4  # Convert mm to inches
+            precipitation = self.current_weather['precipitation'] / 25.4
             precipitation_str = f"{precipitation:.2f} in"
         else:
             temperature_str = f"{self.current_weather['temperature']} °C"
@@ -443,9 +450,9 @@ class YACA:
     def show_forecast(self):
         forecast_window = tk.Toplevel(self.root)
         forecast_window.title("10-Day Forecast")
-        self.forecast_frame = tk.Frame(forecast_window)  # Initialize forecast_frame here
+        self.forecast_frame = tk.Frame(forecast_window)
         self.selected_date = tk.StringVar(forecast_window)
-        self.selected_date.set("All")  # Default value
+        self.selected_date.set("All")
         
         dates = ["All"] + [day['date'] for day in self.forecast]
         
@@ -465,7 +472,7 @@ class YACA:
 
     def update_forecast_display(self, _=None):
         if self.forecast_frame is None:
-            return  # Exit the function if forecast_frame is not initialized
+            return
         
         for widget in self.forecast_frame.winfo_children():
             widget.destroy()
@@ -488,7 +495,7 @@ class YACA:
             if unit == "Imperial":
                 temp_min = temp_min * 9/5 + 32
                 temp_max = temp_max * 9/5 + 32
-                precipitation = day['precipitation'] / 25.4  # Convert mm to inches
+                precipitation = day['precipitation'] / 25.4
                 temp_range = f"{temp_min:.1f} - {temp_max:.1f} °F"
                 precipitation_str = f"{precipitation:.2f} in"
             else:
@@ -508,8 +515,8 @@ class YACA:
         if self.stopwatch and self.stopwatch.running:
             self.stopwatch.update_time()
             self.label.config(text=self.stopwatch.get_time())
-        self.clock_face.update_time()  # Ensure this method exists in ClockFace
-        self.root.after(1000, self.update_clock)  # Update every 1000 milliseconds (1 second)
+        self.clock_face.update_time()
+        self.root.after(1000, self.update_clock)                        # Update every second
 
     def start_stop(self):
         if self.stopwatch.running:
@@ -520,15 +527,15 @@ class YACA:
             self.stopwatch.start()
             self.start_stop_button.config(text="Stop")
             self.lap_reset_button.config(text="Lap")
-            self.stopwatch_start_time = time.time()  # Record the start time
-            threading.Thread(target=self.run_stopwatch).start()  # Start a new thread for the stopwatch
+            self.stopwatch_start_time = time.time()
+            threading.Thread(target=self.run_stopwatch).start()
 
     def run_stopwatch(self):
         while self.stopwatch.running:
             elapsed_time = time.time() - self.stopwatch_start_time
-            self.stopwatch.time = int(elapsed_time * 1000)  # Update the stopwatch time in milliseconds
+            self.stopwatch.time = int(elapsed_time * 1000)
             self.label.config(text=self.stopwatch.get_time())
-            time.sleep(0.1)  # Sleep for 100 milliseconds
+            time.sleep(0.1)
 
     def lap_reset(self):
         if self.stopwatch.running:
@@ -560,7 +567,7 @@ class YACA:
         self.root.geometry(f'{width}x{height}+{x}+{y}')
 
     def check_user_in_db(self, user_info):
-        conn = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/YACA/yaca.db')  # Connect to SQLite database
+        conn = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/YACA/yaca.db')
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM users WHERE id = ?', (user_info['id'],))
         user = cursor.fetchone()
@@ -568,7 +575,7 @@ class YACA:
         return user is not None
 
     def create_users_table(self):
-        conn = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/YACA/yaca.db')  # Connect to SQLite database
+        conn = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/YACA/yaca.db')
         cursor = conn.cursor()
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS users (
@@ -581,9 +588,9 @@ class YACA:
         conn.close()
 
     def ensure_user_in_db(self, user_info):
-        self.create_users_table()  # Ensure the users table is created
+        self.create_users_table()
         if not self.check_user_in_db(user_info):
-            conn = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/YACA/yaca.db')  # Connect to SQLite database
+            conn = sqlite3.connect('/Users/ekhant/Documents/FA24/CS122/termProj/YACA/yaca.db')
             cursor = conn.cursor()
             cursor.execute('''
                 INSERT INTO users (id, name, email) VALUES (?, ?, ?)
@@ -592,28 +599,28 @@ class YACA:
             conn.close()
 
     def refresh_calendar_events(self):
-        self.calendar_listbox.config(state=tk.NORMAL)  # Enable editing to update content
+        self.calendar_listbox.config(state=tk.NORMAL)
         self.calendar_listbox.delete(1.0, tk.END)
         self.calendar_listbox.insert(tk.END, "Refreshing Calendar Events ...\n")
-        self.calendar_listbox.config(state=tk.DISABLED)  # Disable editing after updating content
-        self.root.after(100, self.fetch_calendar_events)  # Fetch and display calendar events after a short delay
+        self.calendar_listbox.config(state=tk.DISABLED)
+        self.root.after(100, self.fetch_calendar_events)
 
     def fetch_calendar_events(self):
         try:
-            self.all_events = []  # Clear previous events
-            self.calendar_listbox.config(state=tk.NORMAL)  # Enable editing to update content
-            self.calendar_listbox.delete(1.0, tk.END)  # Clear the listbox
-            events = get_google_calendar_events(self.user_info['email'])  # Pass the user's email
-            self.all_events = events  # Store all events
-            self.root.after(0, self.update_calendar_dropdown)  # Update the dropdown menu with the latest dates
-            self.root.after(0, lambda: self.update_calendar_events(self.calendar_option.get()))  # Update display based on selected option
+            self.all_events = []
+            self.calendar_listbox.config(state=tk.NORMAL)
+            self.calendar_listbox.delete(1.0, tk.END)
+            events = get_google_calendar_events(self.user_info['email'])
+            self.all_events = events
+            self.root.after(0, self.update_calendar_dropdown)
+            self.root.after(0, lambda: self.update_calendar_events(self.calendar_option.get()))
             print("Fetched and displayed calendar events.")
         except Exception as e:
             print(f"Error fetching calendar events: {e}")
             if 'invalid_grant' in str(e):
                 token_file = f'token_{self.user_info["email"]}.json'
                 if os.path.exists(token_file):
-                    os.remove(token_file)  # Remove the invalid token file
+                    os.remove(token_file)
                     print("Removed invalid token file. Please log in again.")
                 self.calendar_listbox.config(state=tk.NORMAL)
                 self.calendar_listbox.delete(1.0, tk.END)
@@ -625,10 +632,10 @@ class YACA:
         menu.delete(0, "end")
         for day in self.get_next_seven_days():
             menu.add_command(label=day, command=lambda value=day: self.calendar_option.set(value))
-        self.update_calendar_events(self.calendar_option.get())  # Ensure the events are updated when the dropdown is updated
+        self.update_calendar_events(self.calendar_option.get())
 
     def display_calendar_events(self, events):
-        self.calendar_listbox.config(state=tk.NORMAL)  # Enable editing to update content
+        self.calendar_listbox.config(state=tk.NORMAL)
         self.calendar_listbox.delete(1.0, tk.END)
         
         if not events:
@@ -652,7 +659,7 @@ class YACA:
                 if participants:
                     self.calendar_listbox.insert(tk.END, f"Participants: {participants}\n")
                 self.calendar_listbox.insert(tk.END, '-' * 40 + '\n')
-        self.calendar_listbox.config(state=tk.DISABLED)  # Disable editing after updating content
+        self.calendar_listbox.config(state=tk.DISABLED)
 
     def get_next_seven_days(self):
         days = [f"Today ({datetime.now().strftime('%Y-%m-%d')})"]
@@ -663,7 +670,7 @@ class YACA:
         return days
 
     def update_calendar_events(self, option):
-        self.calendar_listbox.config(state=tk.NORMAL)  # Enable editing to update content
+        self.calendar_listbox.config(state=tk.NORMAL)
         self.calendar_listbox.delete(1.0, tk.END)
         
         if option.startswith("Today"):
@@ -684,28 +691,28 @@ class YACA:
             self.calendar_listbox.insert(tk.END, "No upcoming events found.\n")
         else:
             self.display_calendar_events(filtered_events)
-        self.calendar_listbox.config(state=tk.DISABLED)  # Disable editing after updating content
+        self.calendar_listbox.config(state=tk.DISABLED)
 
     def auto_refresh_calendar_events(self):
-        threading.Thread(target=self.fetch_calendar_events).start()  # Fetch and display calendar events in a separate thread
-        self.root.after(60000, self.auto_refresh_calendar_events)  # Schedule the next refresh
+        threading.Thread(target=self.fetch_calendar_events).start()
+        self.root.after(60000, self.auto_refresh_calendar_events)
 
     def auto_refresh_news(self):
-        self.fetch_news()  # Fetch and display news
-        self.root.after(300000, self.auto_refresh_news)  # Schedule the next refresh
+        self.fetch_news()
+        self.root.after(300000, self.auto_refresh_news)
 
     def create_virtual_assistant(self):
         self.recognizer = sr.Recognizer()
         self.engine = pyttsx3.init()
 
     def listen_for_command(self):
-        self.listen_button.config(text="Listening")  # Change the button label to "Listening"
-        self.root.update_idletasks()  # Ensure the UI updates immediately
+        self.listen_button.config(text="Listening")
+        self.root.update_idletasks()
         
         with sr.Microphone() as source:
             print("Listening...")
             try:
-                audio = self.recognizer.listen(source, timeout=5)  # Listen for at most 5 seconds
+                audio = self.recognizer.listen(source, timeout=5)
                 command = self.recognizer.recognize_google(audio)
                 print(f"You: {command}")
                 response = self.process_va_command(command)
@@ -720,8 +727,8 @@ class YACA:
                 print(f"Assistant: Could not request results; {e}")
                 self.speak(f"Could not request results; {e}")
             finally:
-                self.listen_button.config(text="Assistant")  # Change the button label back to "Assistant"
-                self.root.update_idletasks()  # Ensure the UI updates immediately
+                self.listen_button.config(text="Assistant")
+                self.root.update_idletasks()
 
     def speak(self, text):
         self.engine.say(text)
@@ -769,7 +776,7 @@ class YACA:
                 unit = self.unit_var.get()
                 precipitation = self.current_weather['precipitation']
                 if unit == "Imperial":
-                    precipitation = precipitation / 25.4  # Convert mm to inches
+                    precipitation = precipitation / 25.4
                     return f"Today's precipitation is {precipitation:.2f} inches."
                 else:
                     return f"Today's precipitation is {precipitation} mm."
@@ -789,8 +796,13 @@ class YACA:
                 return f"Today's sunset is at {sunset_time}."
             else:
                 return "Sunset data is not available right now."
-        elif "news" in command:
-            return "Fetching news headlines..."  # You can integrate with the existing news fetching function
+        elif "what's new today" in command:
+            if self.news_cache:
+                top_news = self.news_cache[:3]
+                news_titles = [news['title'] for news in top_news]
+                return "Here are the top 3 news headlines: " + "; ".join(news_titles)
+            else:
+                return "News data is not available right now."
         elif "thank you" in command:
             return "You are very welcome!"
         elif "tell me a lie" in command:
@@ -799,18 +811,19 @@ class YACA:
             return "Why did the scarecrow win an award? Because he was outstanding in his field!"
         elif "terminate" in command:
             return "Talk to you later, ciao!"
+        elif "who am i" in command:
+            return f"You are {self.user_info['first_name']} {self.user_info['last_name']}."
         else:
             return "Sorry, I didn't understand that command."
 
     def save_alarm_callback(self):
-        # Define the callback function for saving alarms
         print("Alarm saved successfully.")
 
 if __name__ == "__main__":
     def on_success(current_root, user_info):
-        if current_root.winfo_exists():  # Check if the current root window exists
-            current_root.destroy()  # Destroy the current root window
-        new_root = tk.Tk()  # Create a new root window
+        if current_root.winfo_exists():         # Check if the current root window exists
+            current_root.destroy()              # Destroy the current root window
+        new_root = tk.Tk()                      # Create a new root window
         app = YACA(new_root, user_info)
         new_root.mainloop()
     

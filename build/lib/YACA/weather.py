@@ -3,7 +3,7 @@ import requests
 from dotenv import load_dotenv
 from datetime import datetime
 import pytz
-from timezonefinder import TimezoneFinder  # Import TimezoneFinder
+from timezonefinder import TimezoneFinder
 
 load_dotenv()
 
@@ -18,7 +18,7 @@ def get_current_coordinates():
     data = response.json()
     if data:
         lat, lon = data["lat"], data["lon"]
-        print(f"Current Coordinates: Latitude = {lat}, Longitude = {lon}")  # Print the coordinates for debugging
+        print(f"Current Coordinates: Latitude = {lat}, Longitude = {lon}")
         return lat, lon
     else:
         raise ValueError("Unable to get current location")
@@ -29,7 +29,7 @@ def get_city_name(lat, lon):
     data = response.json()
     if data:
         city = data[0]["name"]
-        print(f"City Name: {city}")  # Print the city name for debugging
+        print(f"City Name: {city}")
         return city
     else:
         raise ValueError("City not found")
@@ -47,20 +47,20 @@ def get_forecast_data(lat, lon):
 def parse_weather_data(data):
     lat, lon = data["coord"]["lat"], data["coord"]["lon"]
     tf = TimezoneFinder()
-    local_tz = pytz.timezone(tf.timezone_at(lat=lat, lng=lon))  # Get the local time zone based on the coordinates
+    local_tz = pytz.timezone(tf.timezone_at(lat=lat, lng=lon))
     weather_info = {
         "temperature": data["main"]["temp"],
-        "air_quality": data.get("air_quality", "N/A"),  # Placeholder, actual air quality data requires another API call
+        "air_quality": data.get("air_quality", "N/A"),
         "precipitation": data.get("rain", {}).get("1h", 0),
-        "uv_index": data.get("uv_index", "N/A"),  # Placeholder, actual UV index data requires another API call
+        "uv_index": data.get("uv_index", "N/A"),
         "humidity": data["main"]["humidity"],
-        "sunrise": datetime.fromtimestamp(data["sys"]["sunrise"], pytz.utc).astimezone(local_tz).strftime('%I:%M:%S %p'),  # Convert to local time zone
-        "sunset": datetime.fromtimestamp(data["sys"]["sunset"], pytz.utc).astimezone(local_tz).strftime('%I:%M:%S %p')  # Convert to local time zone
+        "sunrise": datetime.fromtimestamp(data["sys"]["sunrise"], pytz.utc).astimezone(local_tz).strftime('%I:%M:%S %p'),
+        "sunset": datetime.fromtimestamp(data["sys"]["sunset"], pytz.utc).astimezone(local_tz).strftime('%I:%M:%S %p')
     }
     return weather_info
 
 def parse_forecast_data(data):
-    local_tz = pytz.timezone(os.getenv('TZ', 'UTC'))  # Get the local time zone from the environment or default to UTC
+    local_tz = pytz.timezone(os.getenv('TZ', 'UTC'))
     forecast_info = []
     for day in data["list"]:
         day_info = {
@@ -76,7 +76,7 @@ def parse_forecast_data(data):
 if __name__ == "__main__":
     lat, lon = get_current_coordinates()
     city = get_city_name(lat, lon)
-    print(f"Fetching weather data for {city} (Coordinates: Latitude = {lat}, Longitude = {lon})")  # Print the city and coordinates for debugging
+    print(f"Fetching weather data for {city} (Coordinates: Latitude = {lat}, Longitude = {lon})")
     weather_data = get_weather_data(lat, lon)
     forecast_data = get_forecast_data(lat, lon)
     
